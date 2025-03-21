@@ -25,11 +25,12 @@ char already_imported[MAX_IMPORTS][BUFFER_SIZE];
 int imports = 0;
 int functions = 0;
 int std_functions = 0;
-const char *syntax = "+-<>.,:;[]{}()@!$&=%#SO";
+const char *syntax = "+-<>.,:;[]{}()@!$&=%#";
 int using_stdlib = 0;
 char *main_content;
 char *path;
 char *filename;
+long filesize;
 
 void split_path(const char *path, char *directory, char *filename) {
     // Encuentra la última ocurrencia de '/'
@@ -89,46 +90,49 @@ char *str_replace(char *orig, char *rep, char *with) {
 }
 
 char *get_content(char *filename){
-    char *content = (char *)malloc(MAX_SIZE);
+    char *content;
     ssize_t bytes_read;
-    int fd;
-    fd = open(filename, O_RDONLY);
-    if(fd == -1){
+
+    FILE* fd = fopen(filename, "rb");
+    if(fd == NULL){
         printf("\nNo such file: %s\n", filename);
         exit(1);
     }
-    while((bytes_read = read(fd, content, MAX_SIZE)) > 0){
-        content = realloc(content, MAX_SIZE + bytes_read);
-    }
-    close(fd);
+
+    fseek(fd, 0, SEEK_END);
+    filesize = ftell(fd);
+    content = (char *)malloc(filesize);
+    fseek(fd, 0, SEEK_SET);
+
+    fread(content, sizeof(char), filesize, fd);
+    fclose(fd);
     return content;
 }
 
 char *optimize(char *content){
-   char *new_content = (char *)malloc(MAX_SIZE);
+   char *new_content = (char *)malloc(filesize);
    int j = 0;
    int parentesis = 0;
    for (int i = 0; i < strlen(content); i++){
-       if(strchr(syntax, content[i]) == NULL && parentesis == 0){
-           continue;
-       }
-       if (content[i] == '#'){
-           for (int k = i; k < strlen(content); k++){
-               if (content[k] == '\n'){
-                   i = k;
-                   break;
-               }
-           }
-           continue;
-       }
-       if (content[i] == '('){
-           parentesis++;   
-       }
-       if (content[i] == ')'){
-           parentesis--;
-       }
-       new_content[j] = content[i];
-       j++;
+        if(strchr(syntax, content[i]) == NULL && parentesis == 0){
+            continue;
+        }
+        if (content[i] == '#'){
+            for (int k = i; k < strlen(content); k++){
+                if (content[k] == '\n'){
+                    i = k;
+                    break;
+                }
+            }
+            continue;
+        }
+        if (content[i] == '('){
+            parentesis++;   
+        }
+        if (content[i] == ')'){
+            parentesis--;
+        }
+        new_content[j++] = content[i];
    }
    return new_content;
 }
@@ -288,11 +292,9 @@ int executor(int function){
             break;
         case '.':
             putchar(memory[*memory_position]);
-            fflush(stdout);
             break;
         case ':':
-            printf("%d", memory[*memory_position]);
-            fflush(stdout);
+            printf("%u", memory[*memory_position]);
             break;
         case ',':
             memory[*memory_position] = getchar();
@@ -394,6 +396,7 @@ int main(int argc, char **argv){
 
     main_content = get_content(argv[1]);
     main_content = optimize(main_content);
+    printf("%s\n", main_content);
     executor(-1);
     printf("\n");
     return 0;
